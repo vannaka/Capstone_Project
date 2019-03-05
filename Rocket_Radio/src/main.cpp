@@ -35,8 +35,8 @@ void data_send_task();
 void data_receive_task();
 
 // HDLC callbacks
-void hdlc_frame_handler( const uint8_t *data, uint16_t length );
-void send_byte( uint8_t data );
+void received_data_handler( const uint8_t *data, uint16_t length );
+void send_byte_handler( uint8_t data );
 
 
 /******************************************************************************
@@ -51,12 +51,18 @@ uint8_t rand_max = 255;
 
 Adafruit_MCP3008 adc;
 
-Hdlc hdlc( &send_byte, &hdlc_frame_handler, MAX_HDLC_FRAME_LENGTH );
+Hdlc hdlc( &send_byte_handler, &received_data_handler, MAX_HDLC_FRAME_LENGTH );
 
 
 /******************************************************************************
  *                                 Procedures
  *****************************************************************************/
+
+/**********************************************************
+*   setup
+*       Called once at startup before going into the main
+*       loop.
+**********************************************************/
 void setup()
 {
     Serial.begin( 9600 );
@@ -75,6 +81,11 @@ void setup()
     t2.enable();
 }
 
+
+/**********************************************************
+*   loop
+*       Main program loop
+**********************************************************/
 void loop()
 {
     scheduler.execute();
@@ -93,8 +104,8 @@ void data_send_task()
     data_pkg.rand_num = (uint8_t)random( rand_max );
     data_pkg.adc_chnl_0 = adc.readADC( 0 );
 
-    hdlc.send_frame( (uint8_t *)&data_pkg, sizeof(data_pkg) );
-
+    hdlc.send_frame( SENSOR_DATA, (uint8_t *)&data_pkg, sizeof(data_pkg) );
+    
 }   /* dataTask() */
 
 
@@ -113,20 +124,20 @@ void data_receive_task()
 
 
 /**********************************************************
-*   hdlc_frame_handler
+*   received_data_handler
 *       Called when a new HDLC frame has been received.
 **********************************************************/
-void hdlc_frame_handler( const uint8_t *data, uint16_t length )
+void received_data_handler( const uint8_t *data, uint16_t length )
 {
     rand_max = *data;
 }
 
 
 /**********************************************************
-*   send_character
+*   send_byte_handler
 *       HDLC lib calls this function to send a byte.
 **********************************************************/
-void send_byte( uint8_t data )
+void send_byte_handler( uint8_t data )
 {
-    SerialXbee.write( (uint8_t)data );
+    SerialXbee.write( data );
 }

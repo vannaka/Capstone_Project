@@ -5,28 +5,60 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef void (*sendchar_type)(uint8_t);
-typedef void (*frame_handler_type)(const uint8_t *framebuffer, uint16_t framelength);
+/******************************************************************************
+ *                                 Defines
+ *****************************************************************************/
 
+
+/******************************************************************************
+ *                               Global Types
+ *****************************************************************************/
+
+typedef void (*send_byt_hndlr_t)( uint8_t byte );
+typedef void (*rcvd_data_hndlr_t)( const uint8_t *buffer, uint16_t length );
+
+// Labels what's in the data field of the HDLC frame.
+typedef uint8_t data_type_t;
+enum
+{
+    SENSOR_DATA = 0,
+};
+
+/******************************************************************************
+ *                          Function Declarations
+ *****************************************************************************/
+
+
+/******************************************************************************
+ *                                Classes
+ *****************************************************************************/
+
+/**********************************************************
+*   Hdlc
+*       Used to wrap data in an HDLC frame for transmission
+*       and to parse HDLC frames byte by byte as they're 
+*       received.
+**********************************************************/
 class Hdlc
 {
 public:
-  Hdlc( sendchar_type, frame_handler_type, uint16_t max_frame_length );
-  void byte_receive( uint8_t data );
-  void send_frame( const uint8_t *framebuffer, uint8_t frame_length );
+    Hdlc( send_byt_hndlr_t send_byte_handler, rcvd_data_hndlr_t receive_data_handler, uint16_t max_frame_length );
+
+    void byte_receive( uint8_t data );
+    void send_frame( data_type_t data_type, const uint8_t *buffer, uint8_t length );
 
 private:
-  sendchar_type sendchar_function;
-  frame_handler_type frame_handler;
-  
-  void send_byte(uint8_t data);
-
-  bool escape_character;
-  uint8_t *receive_frame_buffer;
-  uint8_t frame_position;
-  // 16bit CRC sum for _crc_ccitt_update
-  uint16_t frame_checksum;
-  uint16_t max_frame_length;
+    send_byt_hndlr_t send_byte_handler;
+    rcvd_data_hndlr_t receive_data_handler;
+    
+    void send_byte( uint8_t data );
+    void send_boundry_byte();
+        
+    bool escape_character;
+    uint8_t *receive_frame_buffer;
+    uint8_t frame_position;
+    uint16_t frame_checksum;
+    uint16_t max_frame_length;
 };
 
 #endif

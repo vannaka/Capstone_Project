@@ -82,20 +82,14 @@ static uint16_t _crc_ccitt_update( uint16_t crc, uint8_t data )
 //     return crc;
 // }
 
-Hdlc::Hdlc( sendchar_type put_char, frame_handler_type hdlc_command_router, uint16_t max_frame_length ) 
-    : sendchar_function(put_char), frame_handler(hdlc_command_router)
+Hdlc::Hdlc( send_byt_hndlr_t send_byte_handler, rcvd_data_hndlr_t receive_data_handler, uint16_t max_frame_length ) 
+    : send_byte_handler(send_byte_handler), receive_data_handler(receive_data_handler)
 {
     this->frame_position = 0;
     this->max_frame_length = max_frame_length;
     this->receive_frame_buffer = (uint8_t *)malloc( max_frame_length + 1 ); // char *ab = (char*)malloc(12);
     this->frame_checksum = CRC16_CCITT_INIT_VAL;
     this->escape_character = false;
-}
-
-/* Function to send a byte throug USART, I2C, SPI etc.*/
-void Hdlc::send_byte( uint8_t data )
-{
-    (*this->sendchar_function)( data );
 }
 
 /* Function to find valid HDLC frame from incoming data */
@@ -117,7 +111,7 @@ void Hdlc::byte_receive( uint8_t data )
               && ( this->frame_checksum == ( (this->receive_frame_buffer[this->frame_position - 1] << 8 ) | ( this->receive_frame_buffer[this->frame_position - 2] & 0xff ) ) ) ) // (msb << 8 ) | (lsb & 0xff)
         {
             /* Call the user defined function and pass frame to it */
-            (*frame_handler)( receive_frame_buffer, (uint8_t)(this->frame_position - 2) );
+            (*receive_data_handler)( receive_frame_buffer, (uint8_t)(this->frame_position - 2) );
         }
 
         // Reset the frame
@@ -159,48 +153,62 @@ void Hdlc::byte_receive( uint8_t data )
     }
 }
 
-/* Wrap given data in HDLC frame and send it out byte at a time*/
-void Hdlc::send_frame( const uint8_t *framebuffer, uint8_t frame_length )
+
+/**********************************************************
+*   Hdlc::send_byte
+*       Method to send a byte.
+**********************************************************/
+void Hdlc::send_byte( uint8_t data )
+{
+    if( ( data == CONTROL_ESCAPE_OCTET ) 
+     || ( data == FRAME_BOUNDARY_OCTET ) )
+    {
+        (*this->send_byte_handler)( CONTROL_ESCAPE_OCTET );
+        data ^= INVERT_OCTET;
+    }
+
+    (*this->send_byte_handler)( data );
+}
+
+void Hdlc::send_boundry_byte()
+{
+    (*this->send_byte_handler)( FRAME_BOUNDARY_OCTET );
+}
+
+/**********************************************************
+*   Hdlc::send_frame
+*       Wrap given data in HDLC frame and send it out byte 
+*       at a time
+**********************************************************/
+void Hdlc::send_frame( data_type_t data_type, const uint8_t *buffer, uint8_t length )
 {
     uint8_t data;
     uint16_t fcs = CRC16_CCITT_INIT_VAL;
 
     // Send first boundry byte
-    this->send_byte( (uint8_t)FRAME_BOUNDARY_OCTET );
+    this->send_boundry_byte();
+
+    // Send the data_type byte
+    fcs = _crc_ccitt_update( fcs, data_type );
+    this->send_byte( data_type );
 
     // Send data
-    while( frame_length )
+    for( int i = 0; i < length; i++ )
     {
-        data = *framebuffer++;
-        fcs = _crc_ccitt_update(fcs, data);
-        if( (data == CONTROL_ESCAPE_OCTET) || (data == FRAME_BOUNDARY_OCTET) )
-        {
-            this->send_byte((uint8_t)CONTROL_ESCAPE_OCTET);
-            data ^= INVERT_OCTET;
-        }
+        data = buffer[i];
+        fcs = _crc_ccitt_update( fcs, data );
 
-        this->send_byte((uint8_t)data);
-        frame_length--;
+        this->send_byte( data );
     }
 
     // Send low crc
     data = low(fcs);
-    if( (data == CONTROL_ESCAPE_OCTET) || (data == FRAME_BOUNDARY_OCTET) )
-    {
-        this->send_byte( (uint8_t)CONTROL_ESCAPE_OCTET );
-        data ^= (uint8_t)INVERT_OCTET;
-    }
-    this->send_byte( (uint8_t)data );
+    this->send_byte( data );
 
     // Send high crc
     data = high(fcs);
-    if( (data == CONTROL_ESCAPE_OCTET) || (data == FRAME_BOUNDARY_OCTET) )
-    {
-        this->send_byte(CONTROL_ESCAPE_OCTET);
-        data ^= INVERT_OCTET;
-    }
     this->send_byte( data );
 
     // Send last boundry byte
-    this->send_byte( FRAME_BOUNDARY_OCTET );
+    this->send_boundry_byte();
 }
