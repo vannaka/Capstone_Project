@@ -14,15 +14,16 @@
  *                               Global Types
  *****************************************************************************/
 
-typedef void (*send_byt_hndlr_t)( uint8_t byte );
-typedef void (*rcvd_data_hndlr_t)( const uint8_t *buffer, uint16_t length );
-
 // Labels what's in the data field of the HDLC frame.
 typedef uint8_t data_type_t;
 enum
 {
     SENSOR_DATA = 0,
+    RND_MAX = 1,
 };
+
+typedef void (*send_byt_hndlr_t)( uint8_t byte );
+typedef void (*rcvd_data_hndlr_t)( data_type_t data_type, const uint8_t *buffer, uint16_t length );
 
 /******************************************************************************
  *                          Function Declarations

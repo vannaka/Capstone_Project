@@ -35,7 +35,7 @@ void data_send_task();
 void data_receive_task();
 
 // HDLC callbacks
-void received_data_handler( const uint8_t *data, uint16_t length );
+void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
 void send_byte_handler( uint8_t data );
 
 
@@ -105,7 +105,7 @@ void data_send_task()
     data_pkg.adc_chnl_0 = adc.readADC( 0 );
 
     hdlc.send_frame( SENSOR_DATA, (uint8_t *)&data_pkg, sizeof(data_pkg) );
-    
+
 }   /* dataTask() */
 
 
@@ -127,9 +127,22 @@ void data_receive_task()
 *   received_data_handler
 *       Called when a new HDLC frame has been received.
 **********************************************************/
-void received_data_handler( const uint8_t *data, uint16_t length )
+void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length )
 {
-    rand_max = *data;
+    // Handle each type of data we may receive
+    switch( data_type )
+    {
+        case RND_MAX:
+        {
+            rand_max = *data;
+            break;
+        }
+
+        // We received something we don't care 
+        //  about, ignore it.
+        default:
+            break;
+    }
 }
 
 

@@ -110,8 +110,8 @@ void Hdlc::byte_receive( uint8_t data )
         else if( ( this->frame_position >= 2 ) 
               && ( this->frame_checksum == ( (this->receive_frame_buffer[this->frame_position - 1] << 8 ) | ( this->receive_frame_buffer[this->frame_position - 2] & 0xff ) ) ) ) // (msb << 8 ) | (lsb & 0xff)
         {
-            /* Call the user defined function and pass frame to it */
-            (*receive_data_handler)( receive_frame_buffer, (uint8_t)(this->frame_position - 2) );
+            /* Call the user defined function and pass frame data to it */
+            (*receive_data_handler)( receive_frame_buffer[0], &receive_frame_buffer[1], this->frame_position - 3 );
         }
 
         // Reset the frame
