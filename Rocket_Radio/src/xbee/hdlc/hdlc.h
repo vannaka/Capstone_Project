@@ -16,16 +16,8 @@
  *                               Global Types
  *****************************************************************************/
 
-// Labels what's in the data field of the HDLC frame.
-typedef uint8_t data_type_t;
-enum
-{
-    SENSOR_DATA = 0,
-    RND_MAX = 1,
-};
-
 typedef std::function<void(uint8_t)> send_hdnlr_t;
-typedef std::function<void(data_type_t, uint8_t*, uint8_t)> recv_hndlr_t;
+typedef std::function<void(uint8_t*, uint8_t)> recv_hndlr_t;
 
 /******************************************************************************
  *                          Function Declarations
@@ -45,16 +37,13 @@ typedef std::function<void(data_type_t, uint8_t*, uint8_t)> recv_hndlr_t;
 class Hdlc
 {
 public:
-    Hdlc( uint16_t max_frame_length );
+    Hdlc( uint16_t max_data_length );
 
     void set_send_hndlr( send_hdnlr_t const & send_byte_hndlr );
     void set_rcv_hndlr( recv_hndlr_t const & recv_hndlr );
 
     void byte_receive( uint8_t data );
-    void send_frame( data_type_t data_type, uint8_t const * const buffer, uint8_t length );
-    void update();
-    // bool new_frame_received();
-    // void get_data( uint8_t *data, uint8_t *size );
+    void send_frame( uint8_t const * const buffer, uint8_t length );
 
 private:    
     void send_byte( uint8_t data );
@@ -65,7 +54,6 @@ private:
         
     bool escape_character;
     uint8_t *receive_frame_buffer;
-    uint8_t *lastest_data_buf;
     uint8_t frame_position;
     uint16_t frame_checksum;
     uint16_t max_frame_length;

@@ -24,15 +24,29 @@ typedef struct __attribute__((packed))
     uint16_t adc_chnl_0;
 } data_pkg_t;
 
+typedef struct __attribute__((packed))
+{
+    uint8_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t min;
+    uint8_t sec;
+    float lat;
+    float lon;
+    bool fix;
+    uint8_t fix_qual;
+} gps_data_t;
+
 
 /******************************************************************************
  *                          Function Declarations
  *****************************************************************************/
 // Tasks
 void data_send_task();
-void data_receive_task();
+// void data_receive_task();
 void gps_read_task();
-void adc_read_task();
+// void adc_read_task();
 
 // HDLC callbacks
 void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
@@ -45,6 +59,7 @@ void send_byte_handler( uint8_t data );
 // Scheduler / Tasks
 Scheduler scheduler;
 Task t1( 100, TASK_FOREVER, data_send_task );
+Task t2( 1000, TASK_FOREVER, gps_read_task );
 
 uint8_t rand_max = 255;
 
@@ -81,13 +96,9 @@ void setup()
     // connect to the GPS at the desired rate
     gps.begin( 9600 );
     // turn on RMC (recommended minimum) and GGA (fix data) including altitude
-    gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA );
-    // turn on only the "minimum recommended" data
-    // GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
-    // Set the update rate
-    gps.sendCommand( PMTK_SET_NMEA_UPDATE_1HZ );
-    // Turn off updates on antenna status
-    gps.sendCommand( PGCMD_NOANTENNA );
+    gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA );    
+    gps.sendCommand( PMTK_SET_NMEA_UPDATE_1HZ );    // Set the update rate
+    gps.sendCommand( PGCMD_NOANTENNA );             // Turn off updates on antenna status
 
     // Setup cooperative scheduler
     scheduler.init();
@@ -109,13 +120,13 @@ void loop()
     *  Receive data from xbee and parse it.
     ******************************************************/
     xbee.read();
-    if( xbee.new_frame_received() )
+    if( xbee.new_data_received() )
     {
         data_type_t data_type;
-        uint8_t *data = NULL;
+        uint8_t data[MAX_DATA_LENGTH];
         uint8_t size;
 
-        xbee.get_data( &data_type, data, &size );
+        xbee.get_data( data_type, data, size );
 
         switch( data_type )
         {
@@ -136,7 +147,6 @@ void loop()
     {    
         gps.parse( gps.lastNMEA() );
     }
-
 }
 
 
@@ -153,4 +163,27 @@ void data_send_task()
     data_pkg.adc_chnl_0 = adc.readADC( 0 );
 
     xbee.send_data( SENSOR_DATA, (uint8_t*)&data_pkg, sizeof(data_pkg) );
+}
+
+/**********************************************************
+*   gps_read_task
+*       1000ms task. Sends the date, time, long and
+*       lat from GPS to ground station.
+**********************************************************/
+void gps_send_task()
+{
+    gps_data_t data;
+
+    data.year = gps.year;
+    data.month = gps.month;
+    data.day = gps.day;
+    data.hour = gps.hour;
+    data.min = gps.minute;
+    data.sec = gps.seconds;
+    data.lat = gps.latitude;
+    data.lon = gps.longitude;
+    data.fix = gps.fix;
+    data.fix_qual = gps.fixquality;
+
+    xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
 }

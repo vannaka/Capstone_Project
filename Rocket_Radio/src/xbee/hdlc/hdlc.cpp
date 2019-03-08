@@ -38,49 +38,35 @@ static uint16_t _crc_ccitt_update( uint16_t crc, uint8_t data );
 *   Hdlc
 *       Constructor
 **********************************************************/
-Hdlc::Hdlc( uint16_t max_frame_length ) :
-    frame_position( 0 ),
-    max_frame_length( max_frame_length ),
+Hdlc::Hdlc( uint16_t max_data_length ) :
+    escape_character( false ),
     receive_frame_buffer( new uint8_t[max_frame_length + 1] ),
-    lastest_data_buf( new uint8_t[max_frame_length + 1] ),
+    frame_position( 0 ),
     frame_checksum( CRC16_CCITT_INIT_VAL ),
-    escape_character( false )
+    max_frame_length( max_data_length + 2 )
     // out_buf(OUT_BUF_SIZE)
 {
 }
 
 
+/**********************************************************
+*   set_send_hndlr
+*       set the handler that is called to transmit bytes.
+**********************************************************/
 void Hdlc::set_send_hndlr( send_hdnlr_t const & send_byte_hndlr )
 {
     m_send_byte_hndlr = send_byte_hndlr;
 }
 
 
+/**********************************************************
+*   set_rcv_hndlr
+*       set the handler that is called to receive data.
+**********************************************************/
 void Hdlc::set_rcv_hndlr( recv_hndlr_t const & recv_hndlr )
 {
     m_recv_frame_hndlr = recv_hndlr;
 }
-
-// /**********************************************************
-// *   new_frame_received
-// *       Returns whether there is data ready to retrieve.
-// **********************************************************/
-// bool Hdlc::new_frame_received()
-// {
-//     bool tmp = new_data_ready;
-//     new_data_ready = false;
-//     return tmp;
-// }
-
-// /**********************************************************
-// *   get_data
-// *       Returns the data
-// **********************************************************/
-// void Hdlc::get_data( uint8_t * const data, uint8_t * const size )
-// {
-//     memcpy( data, lastest_data_buf, rdy_data_sz );
-//     *size = rdy_data_sz;
-// }
 
 
 /**********************************************************
@@ -105,10 +91,7 @@ void Hdlc::byte_receive( uint8_t data )
         else if( ( this->frame_position >= 2 ) 
               && ( this->frame_checksum == ( (this->receive_frame_buffer[this->frame_position - 1] << 8 ) | ( this->receive_frame_buffer[this->frame_position - 2] & 0xff ) ) ) ) // (msb << 8 ) | (lsb & 0xff)
         {
-            /* Call the user defined function and pass frame data to it */
-            // (*receive_data_handler)( receive_frame_buffer[0], &receive_frame_buffer[1], this->frame_position - 3 );
-
-            m_recv_frame_hndlr( receive_frame_buffer[0], &receive_frame_buffer[1], this->frame_position - 3 );
+            m_recv_frame_hndlr( receive_frame_buffer, this->frame_position - 2 );
         }
 
         // Reset the frame
@@ -186,17 +169,13 @@ void Hdlc::send_boundry_byte()
 *       Wrap given data in HDLC frame and send it out byte 
 *       at a time
 **********************************************************/
-void Hdlc::send_frame( data_type_t data_type, uint8_t const * const buffer, uint8_t length )
+void Hdlc::send_frame( uint8_t const * const buffer, uint8_t length )
 {
     uint8_t data;
     uint16_t fcs = CRC16_CCITT_INIT_VAL;
 
     // Send first boundry byte
     this->send_boundry_byte();
-
-    // Send the data_type byte
-    fcs = _crc_ccitt_update( fcs, data_type );
-    this->send_byte( data_type );
 
     // Send data
     for( int i = 0; i < length; i++ )
