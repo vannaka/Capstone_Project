@@ -1,9 +1,11 @@
-#ifndef hdlc_h
+// #ifndef hdlc_h
 #define hdlc_h
 
 #include "Arduino.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <functional>
+// #include "../../circular_buffer/circular_buffer.h"
 
 /******************************************************************************
  *                                 Defines
@@ -22,8 +24,8 @@ enum
     RND_MAX = 1,
 };
 
-typedef void (*send_byt_hndlr_t)( uint8_t byte );
-typedef void (*rcvd_data_hndlr_t)( data_type_t data_type, const uint8_t *buffer, uint16_t length );
+typedef std::function<void(uint8_t)> send_hdnlr_t;
+typedef std::function<void(data_type_t, uint8_t*, uint8_t)> recv_hndlr_t;
 
 /******************************************************************************
  *                          Function Declarations
@@ -43,23 +45,32 @@ typedef void (*rcvd_data_hndlr_t)( data_type_t data_type, const uint8_t *buffer,
 class Hdlc
 {
 public:
-    Hdlc( send_byt_hndlr_t send_byte_handler, rcvd_data_hndlr_t receive_data_handler, uint16_t max_frame_length );
+    Hdlc( uint16_t max_frame_length );
+
+    void set_send_hndlr( send_hdnlr_t const & send_byte_hndlr );
+    void set_rcv_hndlr( recv_hndlr_t const & recv_hndlr );
 
     void byte_receive( uint8_t data );
-    void send_frame( data_type_t data_type, const uint8_t *buffer, uint8_t length );
+    void send_frame( data_type_t data_type, uint8_t const * const buffer, uint8_t length );
+    void update();
+    // bool new_frame_received();
+    // void get_data( uint8_t *data, uint8_t *size );
 
-private:
-    send_byt_hndlr_t send_byte_handler;
-    rcvd_data_hndlr_t receive_data_handler;
-    
+private:    
     void send_byte( uint8_t data );
     void send_boundry_byte();
+
+    send_hdnlr_t m_send_byte_hndlr;
+    recv_hndlr_t m_recv_frame_hndlr;
         
     bool escape_character;
     uint8_t *receive_frame_buffer;
+    uint8_t *lastest_data_buf;
     uint8_t frame_position;
     uint16_t frame_checksum;
     uint16_t max_frame_length;
+
+    // Circular_Buffer out_buf;
 };
 
-#endif
+// #endif

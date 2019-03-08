@@ -3,18 +3,16 @@
 #include <Wire.h>
 
 #include <TaskScheduler.h>
-
 #include <Adafruit_MCP3008.h>
+#include <Adafruit_GPS.h>
 
-#include "hdlc/hdlc.h"
+// #include "hdlc/hdlc.h"
+#include "xbee/xbee.h"
 
 /******************************************************************************
  *                                 Defines
  *****************************************************************************/
-#define SerialXbee Serial1
 #define ADC_SS_PIN 10
-
-#define MAX_HDLC_FRAME_LENGTH 64
 
 
 /******************************************************************************
@@ -33,6 +31,8 @@ typedef struct __attribute__((packed))
 // Tasks
 void data_send_task();
 void data_receive_task();
+void gps_read_task();
+void adc_read_task();
 
 // HDLC callbacks
 void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
@@ -45,13 +45,17 @@ void send_byte_handler( uint8_t data );
 // Scheduler / Tasks
 Scheduler scheduler;
 Task t1( 100, TASK_FOREVER, data_send_task );
-Task t2( 100, TASK_FOREVER, data_receive_task );
 
 uint8_t rand_max = 255;
 
+// Xbee object
+Xbee xbee( &Serial1 );
+
+// Adc object
 Adafruit_MCP3008 adc;
 
-Hdlc hdlc( &send_byte_handler, &received_data_handler, MAX_HDLC_FRAME_LENGTH );
+// GPS object
+Adafruit_GPS gps( &Serial2 );
 
 
 /******************************************************************************
@@ -66,19 +70,30 @@ Hdlc hdlc( &send_byte_handler, &received_data_handler, MAX_HDLC_FRAME_LENGTH );
 void setup()
 {
     Serial.begin( 9600 );
-    SerialXbee.begin( 9600 );
+    // SerialXbee.begin( 9600 );
+    xbee.setup( 9600 );
 
+    // ADC initialization
+    adc.begin( ADC_SS_PIN );
     randomSeed( analogRead(0) );
 
-    adc.begin( ADC_SS_PIN );
+    // GPS initialization
+    // connect to the GPS at the desired rate
+    gps.begin( 9600 );
+    // turn on RMC (recommended minimum) and GGA (fix data) including altitude
+    gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA );
+    // turn on only the "minimum recommended" data
+    // GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+    // Set the update rate
+    gps.sendCommand( PMTK_SET_NMEA_UPDATE_1HZ );
+    // Turn off updates on antenna status
+    gps.sendCommand( PGCMD_NOANTENNA );
 
     // Setup cooperative scheduler
     scheduler.init();
     scheduler.addTask( t1 );
-    scheduler.addTask( t2 );
 
     t1.enable();
-    t2.enable();
 }
 
 
@@ -89,6 +104,39 @@ void setup()
 void loop()
 {
     scheduler.execute();
+
+    /******************************************************
+    *  Receive data from xbee and parse it.
+    ******************************************************/
+    xbee.read();
+    if( xbee.new_frame_received() )
+    {
+        data_type_t data_type;
+        uint8_t *data = NULL;
+        uint8_t size;
+
+        xbee.get_data( &data_type, data, &size );
+
+        switch( data_type )
+        {
+            case RND_MAX:
+                rand_max = *data;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /******************************************************
+    *  Receive data from GPS and parse it.
+    ******************************************************/
+    gps.read();
+    if( gps.newNMEAreceived() ) 
+    {    
+        gps.parse( gps.lastNMEA() );
+    }
+
 }
 
 
@@ -104,53 +152,5 @@ void data_send_task()
     data_pkg.rand_num = (uint8_t)random( rand_max );
     data_pkg.adc_chnl_0 = adc.readADC( 0 );
 
-    hdlc.send_frame( SENSOR_DATA, (uint8_t *)&data_pkg, sizeof(data_pkg) );
-
-}   /* dataTask() */
-
-
-/**********************************************************
-*   dataReceive
-*       100ms task. Reads incoming bytes from the Xbee.
-**********************************************************/
-void data_receive_task()
-{
-    if( SerialXbee.available() > 0 )
-    {
-        uint8_t new_byte = (uint8_t)SerialXbee.read();
-        hdlc.byte_receive( new_byte );
-    }
-}
-
-
-/**********************************************************
-*   received_data_handler
-*       Called when a new HDLC frame has been received.
-**********************************************************/
-void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length )
-{
-    // Handle each type of data we may receive
-    switch( data_type )
-    {
-        case RND_MAX:
-        {
-            rand_max = *data;
-            break;
-        }
-
-        // We received something we don't care 
-        //  about, ignore it.
-        default:
-            break;
-    }
-}
-
-
-/**********************************************************
-*   send_byte_handler
-*       HDLC lib calls this function to send a byte.
-**********************************************************/
-void send_byte_handler( uint8_t data )
-{
-    SerialXbee.write( data );
+    xbee.send_data( SENSOR_DATA, (uint8_t*)&data_pkg, sizeof(data_pkg) );
 }
