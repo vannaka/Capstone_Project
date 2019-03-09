@@ -36,6 +36,7 @@ typedef struct __attribute__((packed))
     float lon;
     bool fix;
     uint8_t fix_qual;
+    uint8_t sat_num;
 } gps_data_t;
 
 
@@ -45,7 +46,7 @@ typedef struct __attribute__((packed))
 // Tasks
 void data_send_task();
 // void data_receive_task();
-void gps_read_task();
+void gps_send_task();
 // void adc_read_task();
 
 // HDLC callbacks
@@ -59,7 +60,7 @@ void send_byte_handler( uint8_t data );
 // Scheduler / Tasks
 Scheduler scheduler;
 Task t1( 100, TASK_FOREVER, data_send_task );
-Task t2( 1000, TASK_FOREVER, gps_read_task );
+Task t2( 1000, TASK_FOREVER, gps_send_task );
 
 uint8_t rand_max = 255;
 
@@ -103,8 +104,10 @@ void setup()
     // Setup cooperative scheduler
     scheduler.init();
     scheduler.addTask( t1 );
+    scheduler.addTask( t2 );
 
     t1.enable();
+    t2.enable();
 }
 
 
@@ -166,7 +169,7 @@ void data_send_task()
 }
 
 /**********************************************************
-*   gps_read_task
+*   gps_send_task
 *       1000ms task. Sends the date, time, long and
 *       lat from GPS to ground station.
 **********************************************************/
@@ -184,6 +187,7 @@ void gps_send_task()
     data.lon = gps.longitude;
     data.fix = gps.fix;
     data.fix_qual = gps.fixquality;
+    data.sat_num = gps.satellites;    
 
     xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
 }

@@ -13,7 +13,6 @@
 		<Item Name="hdlc" Type="Folder" URL="../hdlc">
 			<Property Name="NI.DISK" Type="Bool">true</Property>
 		</Item>
-		<Item Name="data_pkg_t.ctl" Type="VI" URL="../data_pkg_t.ctl"/>
 		<Item Name="Ground_Station.vi" Type="VI" URL="../Ground_Station.vi"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
