@@ -6,13 +6,13 @@
 #include <Adafruit_MCP3008.h>
 #include <Adafruit_GPS.h>
 
-// #include "hdlc/hdlc.h"
 #include "xbee/xbee.h"
 
 /******************************************************************************
  *                                 Defines
  *****************************************************************************/
 #define ADC_SS_PIN 10
+#define SD_SS_PIN 4
 
 
 /******************************************************************************
@@ -75,8 +75,8 @@ Adafruit_GPS gps( &Serial2 );
 
 
 /******************************************************************************
- *                                 Procedures
- *****************************************************************************/
+*                                 Procedures
+******************************************************************************/
 
 /**********************************************************
 *   setup
@@ -177,17 +177,18 @@ void gps_send_task()
 {
     gps_data_t data;
 
-    data.year = gps.year;
-    data.month = gps.month;
-    data.day = gps.day;
-    data.hour = gps.hour;
-    data.min = gps.minute;
-    data.sec = gps.seconds;
-    data.lat = gps.latitude;
-    data.lon = gps.longitude;
-    data.fix = gps.fix;
-    data.fix_qual = gps.fixquality;
-    data.sat_num = gps.satellites;    
+    data.year       = gps.year;
+    data.month      = gps.month;
+    data.day        = gps.day;
+    data.hour       = gps.hour;
+    data.min        = gps.minute;
+    data.sec        = gps.seconds;
+    data.lat        = gps.latitude;
+    data.lat        = gps.latitudeDegrees;
+    data.lon        = gps.longitudeDegrees;
+    data.fix        = gps.fix;
+    data.fix_qual   = gps.fixquality;
+    data.sat_num    = gps.satellites;
 
     xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
 }
