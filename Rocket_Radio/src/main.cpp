@@ -6,6 +6,10 @@
 #include <Adafruit_MCP3008.h>
 #include <Adafruit_GPS.h>
 
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
+#include <utility/imumaths.h>
+
 #include "xbee/xbee.h"
 
 /******************************************************************************
@@ -22,6 +26,12 @@ typedef struct __attribute__((packed))
 {
     uint8_t rand_num;
     uint16_t adc_chnl_0;
+    float angle_x;
+    float angle_y;
+    float angle_z;
+    float accel_x;
+    float accel_y;
+    float accel_z;
 } data_pkg_t;
 
 typedef struct __attribute__((packed))
@@ -45,9 +55,8 @@ typedef struct __attribute__((packed))
  *****************************************************************************/
 // Tasks
 void data_send_task();
-// void data_receive_task();
 void gps_send_task();
-// void adc_read_task();
+void data_collect_task();
 
 // HDLC callbacks
 void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
@@ -61,6 +70,7 @@ void send_byte_handler( uint8_t data );
 Scheduler scheduler;
 Task t1( 100, TASK_FOREVER, data_send_task );
 Task t2( 1000, TASK_FOREVER, gps_send_task );
+Task t3( 100, TASK_FOREVER, data_collect_task );
 
 uint8_t rand_max = 255;
 
@@ -72,6 +82,12 @@ Adafruit_MCP3008 adc;
 
 // GPS object
 Adafruit_GPS gps( &Serial2 );
+
+// IMU Object
+Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
+
+// Store all sensor data in this structure.
+data_pkg_t sensor_data;
 
 
 /******************************************************************************
@@ -85,29 +101,36 @@ Adafruit_GPS gps( &Serial2 );
 **********************************************************/
 void setup()
 {
+    randomSeed( analogRead(0) );
+
+    // Serial initialization (DEBUGING)
     Serial.begin( 9600 );
-    // SerialXbee.begin( 9600 );
+
+    // Xbee initialization
     xbee.setup( 9600 );
 
     // ADC initialization
     adc.begin( ADC_SS_PIN );
-    randomSeed( analogRead(0) );
 
     // GPS initialization
-    // connect to the GPS at the desired rate
     gps.begin( 9600 );
-    // turn on RMC (recommended minimum) and GGA (fix data) including altitude
-    gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA );    
+    gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA ); // turn on RMC (recommended minimum) and GGA (fix data) including altitude
     gps.sendCommand( PMTK_SET_NMEA_UPDATE_1HZ );    // Set the update rate
     gps.sendCommand( PGCMD_NOANTENNA );             // Turn off updates on antenna status
+
+    // IMU setup
+    imu_sensor.begin();
+    delay(1000);
+    imu_sensor.setExtCrystalUse( true );
 
     // Setup cooperative scheduler
     scheduler.init();
     scheduler.addTask( t1 );
     scheduler.addTask( t2 );
-
+    scheduler.addTask( t3 );
     t1.enable();
     t2.enable();
+    t3.enable();
 }
 
 
@@ -154,18 +177,41 @@ void loop()
 
 
 /**********************************************************
+*   data_collect_task
+*       100ms task. Collects data from various sensors.
+**********************************************************/
+void data_collect_task()
+{
+    imu::Vector<3> eul_vec;
+    imu::Vector<3> acc_vec;
+    imu::Quaternion quat;
+
+    // Get IMU data
+    eul_vec = imu_sensor.getVector( Adafruit_BNO055::VECTOR_EULER );
+    acc_vec = imu_sensor.getVector( Adafruit_BNO055::VECTOR_LINEARACCEL );
+
+    sensor_data.angle_x = (float)eul_vec.x();
+    sensor_data.angle_y = (float)eul_vec.y();
+    sensor_data.angle_z = (float)eul_vec.z();
+    
+    sensor_data.accel_x = (float)acc_vec.x();
+    sensor_data.accel_y = (float)acc_vec.y();
+    sensor_data.accel_z = (float)acc_vec.z();
+
+    sensor_data.adc_chnl_0 = adc.readADC( 0 );
+
+    sensor_data.rand_num = (uint8_t)random( rand_max );
+}
+
+
+/**********************************************************
 *   data_send_task
 *       100ms task. Sends out data to ground
 *       station.
 **********************************************************/
 void data_send_task()
 {
-    data_pkg_t data_pkg;
-
-    data_pkg.rand_num = (uint8_t)random( rand_max );
-    data_pkg.adc_chnl_0 = adc.readADC( 0 );
-
-    xbee.send_data( SENSOR_DATA, (uint8_t*)&data_pkg, sizeof(data_pkg) );
+    xbee.send_data( SENSOR_DATA, (uint8_t*)&sensor_data, sizeof(sensor_data) );
 }
 
 /**********************************************************
