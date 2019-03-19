@@ -3,6 +3,8 @@
 #include <Wire.h>
 #include <SD.h>
 
+#include <string>
+
 #include <TaskScheduler.h>
 #include <Adafruit_MCP3008.h>
 #include <Adafruit_GPS.h>
@@ -123,19 +125,19 @@ void setup()
     //SD initialization 
     SD.begin( SD_SS_PIN );
     //Initialize Sensor Data File 
-    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT ) );
+    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(snsr_file)
     {
         snsr_file.println( "angleX, angleY, angleZ, accelX, accelY, accelZ, adc_chnl0" );
     }
-    snsr_file.close();
+    // snsr_file.close();
     //Initialize GPS data file 
-    gps_file = SD.open( SD_FILE_GPS, ( O_WRITE | O_CREAT ) );
+    gps_file = SD.open( SD_FILE_GPS, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(gps_file)
     {
-        gps_file.println( "year, month, day, hour, minute, second, latitude, latitude degrees, longitude degrees, fix, fix quality, satellites" );
+        gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
     }
-    gps_file.close();
+    // gps_file.close();
 
     // GPS initialization
     gps.begin( 9600 );
@@ -230,19 +232,16 @@ void data_collect_task()
 
     //Save Data to SD card 
     sprintf( snsr_data_string, 
-             "%f, %f, %f, %f, %f, %f, %d", 
-             sensor_data.angle_x, 
-             sensor_data.angle_y, 
-             sensor_data.angle_z, 
-             sensor_data.accel_x, 
-             sensor_data.accel_y, 
-             sensor_data.accel_z,
+             "%s, %s, %s, %s, %s, %s, %d",
+             String( sensor_data.angle_x, 4 ).c_str(),
+             String( sensor_data.angle_y, 4 ).c_str(), 
+             String( sensor_data.angle_z, 4 ).c_str(), 
+             String( sensor_data.accel_x, 4 ).c_str(), 
+             String( sensor_data.accel_y, 4 ).c_str(), 
+             String( sensor_data.accel_z, 4 ).c_str(),
              sensor_data.adc_chnl_0         );
 
-
-    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT ) );
     snsr_file.println( snsr_data_string );
-    snsr_file.close();
 
 }
 
@@ -272,7 +271,6 @@ void gps_send_task()
     data.hour       = gps.hour;
     data.min        = gps.minute;
     data.sec        = gps.seconds;
-    data.lat        = gps.latitude;
     data.lat        = gps.latitudeDegrees;
     data.lon        = gps.longitudeDegrees;
     data.fix        = gps.fix;
@@ -283,22 +281,20 @@ void gps_send_task()
 
     //Save Data To SD card 
     sprintf( gps_data_string, 
-             "%d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %d, %d", 
+             "%d, %d, %d, %d, %d, %d, %s, %s, %d, %d, %d", 
              data.year, 
              data.month, 
              data.day, 
              data.hour,
              data.min,
              data.sec,
-             data.lat,
-             data.lat, 
-             data.lon,
+             String( data.lat, 4 ).c_str(), 
+             String( data.lon, 4 ).c_str(),
              data.fix,
              data.fix_qual,
              data.sat_num   );
 
-    gps_file = SD.open( SD_FILE_GPS, O_WRITE );
     gps_file.println( gps_data_string );
-    gps_file.close();
+    gps_file.flush();
     
 }
