@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <SD.h>
 
 #include <TaskScheduler.h>
 #include <Adafruit_MCP3008.h>
@@ -17,7 +18,8 @@
  *****************************************************************************/
 #define ADC_SS_PIN 10
 #define SD_SS_PIN 4
-
+#define SD_FILE_SNSR "snsr.csv"
+#define SD_FILE_GPS "gps.csv"
 
 /******************************************************************************
  *                               Global Types
@@ -86,6 +88,12 @@ Adafruit_GPS gps( &Serial2 );
 // IMU Object
 Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
 
+//File objects and data string 
+File snsr_file;
+File gps_file;
+char snsr_data_string[ 100 ];
+char gps_data_string[ 150 ];
+
 // Store all sensor data in this structure.
 data_pkg_t sensor_data;
 
@@ -111,6 +119,23 @@ void setup()
 
     // ADC initialization
     adc.begin( ADC_SS_PIN );
+
+    //SD initialization 
+    SD.begin( SD_SS_PIN );
+    //Initialize Sensor Data File 
+    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT ) );
+    if(snsr_file)
+    {
+        snsr_file.println( "angleX, angleY, angleZ, accelX, accelY, accelZ, adc_chnl0" );
+    }
+    snsr_file.close();
+    //Initialize GPS data file 
+    gps_file = SD.open( SD_FILE_GPS, ( O_WRITE | O_CREAT ) );
+    if(gps_file)
+    {
+        gps_file.println( "year, month, day, hour, minute, second, latitude, latitude degrees, longitude degrees, fix, fix quality, satellites" );
+    }
+    gps_file.close();
 
     // GPS initialization
     gps.begin( 9600 );
@@ -163,6 +188,7 @@ void loop()
             default:
                 break;
         }
+
     }
 
     /******************************************************
@@ -201,6 +227,23 @@ void data_collect_task()
     sensor_data.adc_chnl_0 = adc.readADC( 0 );
 
     sensor_data.rand_num = (uint8_t)random( rand_max );
+
+    //Save Data to SD card 
+    sprintf( snsr_data_string, 
+             "%f, %f, %f, %f, %f, %f, %d", 
+             sensor_data.angle_x, 
+             sensor_data.angle_y, 
+             sensor_data.angle_z, 
+             sensor_data.accel_x, 
+             sensor_data.accel_y, 
+             sensor_data.accel_z,
+             sensor_data.adc_chnl_0         );
+
+
+    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT ) );
+    snsr_file.println( snsr_data_string );
+    snsr_file.close();
+
 }
 
 
@@ -237,4 +280,25 @@ void gps_send_task()
     data.sat_num    = gps.satellites;
 
     xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
+
+    //Save Data To SD card 
+    sprintf( gps_data_string, 
+             "%d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %d, %d", 
+             data.year, 
+             data.month, 
+             data.day, 
+             data.hour,
+             data.min,
+             data.sec,
+             data.lat,
+             data.lat, 
+             data.lon,
+             data.fix,
+             data.fix_qual,
+             data.sat_num   );
+
+    gps_file = SD.open( SD_FILE_GPS, O_WRITE );
+    gps_file.println( gps_data_string );
+    gps_file.close();
+    
 }
