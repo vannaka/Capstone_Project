@@ -28,8 +28,14 @@
  *****************************************************************************/
 typedef struct __attribute__((packed))
 {
-    uint8_t rand_num;
     uint16_t adc_chnl_0;
+    uint16_t adc_chnl_1;
+    uint16_t adc_chnl_2;
+    uint16_t adc_chnl_3;
+    uint16_t adc_chnl_4;
+    uint16_t adc_chnl_5;
+    uint16_t adc_chnl_6;
+    uint16_t adc_chnl_7;
     float angle_x;
     float angle_y;
     float angle_z;
@@ -72,11 +78,9 @@ void send_byte_handler( uint8_t data );
  *****************************************************************************/
 // Scheduler / Tasks
 Scheduler scheduler;
-Task t1( 100, TASK_FOREVER, data_send_task );
+Task t1( 200, TASK_FOREVER, data_send_task );
 Task t2( 1000, TASK_FOREVER, gps_send_task );
 Task t3( 100, TASK_FOREVER, data_collect_task );
-
-uint8_t rand_max = 255;
 
 // Xbee object
 Xbee xbee( &Serial1 );
@@ -93,8 +97,6 @@ Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
 //File objects and data string 
 File snsr_file;
 File gps_file;
-char snsr_data_string[ 100 ];
-char gps_data_string[ 150 ];
 
 // Store all sensor data in this structure.
 data_pkg_t sensor_data;
@@ -111,8 +113,6 @@ data_pkg_t sensor_data;
 **********************************************************/
 void setup()
 {
-    randomSeed( analogRead(0) );
-
     // Serial initialization (DEBUGING)
     Serial.begin( 9600 );
 
@@ -124,20 +124,20 @@ void setup()
 
     //SD initialization 
     SD.begin( SD_SS_PIN );
+
     //Initialize Sensor Data File 
     snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(snsr_file)
     {
-        snsr_file.println( "angleX, angleY, angleZ, accelX, accelY, accelZ, adc_chnl0" );
+        snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
     }
-    // snsr_file.close();
+    
     //Initialize GPS data file 
     gps_file = SD.open( SD_FILE_GPS, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(gps_file)
     {
         gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
     }
-    // gps_file.close();
 
     // GPS initialization
     gps.begin( 9600 );
@@ -183,10 +183,6 @@ void loop()
 
         switch( data_type )
         {
-            case RND_MAX:
-                rand_max = *data;
-                break;
-
             default:
                 break;
         }
@@ -210,6 +206,8 @@ void loop()
 **********************************************************/
 void data_collect_task()
 {
+    char snsr_data_string[ 100 ];
+
     imu::Vector<3> eul_vec;
     imu::Vector<3> acc_vec;
     imu::Quaternion quat;
@@ -226,30 +224,45 @@ void data_collect_task()
     sensor_data.accel_y = (float)acc_vec.y();
     sensor_data.accel_z = (float)acc_vec.z();
 
+    // Get ADC data
     sensor_data.adc_chnl_0 = adc.readADC( 0 );
+    sensor_data.adc_chnl_1 = adc.readADC( 1 );
+    sensor_data.adc_chnl_2 = adc.readADC( 2 );
+    sensor_data.adc_chnl_3 = adc.readADC( 3 );
+    sensor_data.adc_chnl_4 = adc.readADC( 4 );
+    sensor_data.adc_chnl_5 = adc.readADC( 5 );
+    sensor_data.adc_chnl_6 = adc.readADC( 6 );
+    sensor_data.adc_chnl_7 = adc.readADC( 7 );
 
-    sensor_data.rand_num = (uint8_t)random( rand_max );
-
-    //Save Data to SD card 
+    // Save Data to SD card
     sprintf( snsr_data_string, 
-             "%s, %s, %s, %s, %s, %s, %d",
+             "%s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d",
              String( sensor_data.angle_x, 4 ).c_str(),
              String( sensor_data.angle_y, 4 ).c_str(), 
              String( sensor_data.angle_z, 4 ).c_str(), 
              String( sensor_data.accel_x, 4 ).c_str(), 
              String( sensor_data.accel_y, 4 ).c_str(), 
              String( sensor_data.accel_z, 4 ).c_str(),
-             sensor_data.adc_chnl_0         );
+             sensor_data.adc_chnl_0,
+             sensor_data.adc_chnl_1,
+             sensor_data.adc_chnl_2,
+             sensor_data.adc_chnl_3,
+             sensor_data.adc_chnl_4,
+             sensor_data.adc_chnl_5,
+             sensor_data.adc_chnl_6,
+             sensor_data.adc_chnl_7
+    );
 
     snsr_file.println( snsr_data_string );
-
 }
 
 
 /**********************************************************
 *   data_send_task
 *       100ms task. Sends out data to ground
-*       station.
+*       station. This is separate from the data collection
+*       task so that we can send out data at a slower rate
+*       than at which it is collected.
 **********************************************************/
 void data_send_task()
 {
@@ -264,6 +277,7 @@ void data_send_task()
 void gps_send_task()
 {
     gps_data_t data;
+    char gps_data_string[ 150 ];
 
     data.year       = gps.year;
     data.month      = gps.month;

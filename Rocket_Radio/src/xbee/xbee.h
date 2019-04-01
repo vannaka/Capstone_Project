@@ -21,8 +21,7 @@ typedef uint8_t data_type_t;
 enum
 {
     SENSOR_DATA     = 0,
-    RND_MAX         = 1,
-    GPS_DATA        = 2,
+    GPS_DATA        = 1,
 };
 
 /******************************************************************************
