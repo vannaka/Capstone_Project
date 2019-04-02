@@ -206,7 +206,7 @@ void loop()
 **********************************************************/
 void data_collect_task()
 {
-    char snsr_data_string[ 100 ];
+    char snsr_data_string[ 256 ];
 
     imu::Vector<3> eul_vec;
     imu::Vector<3> acc_vec;
@@ -311,4 +311,5 @@ void gps_send_task()
     gps_file.println( gps_data_string );
     gps_file.flush();
     
+    snsr_file.flush();
 }
