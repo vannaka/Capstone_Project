@@ -111,6 +111,8 @@ File count_file;
 data_pkg_t sensor_data;
 
 
+bool log_data;
+
 /******************************************************************************
 *                                 Procedures
 ******************************************************************************/
@@ -122,6 +124,8 @@ data_pkg_t sensor_data;
 **********************************************************/
 void setup()
 {
+    log_data = false;
+
     // Serial initialization (DEBUGING)
     Serial.begin( 9600 );
 
@@ -178,6 +182,28 @@ void loop()
 
         switch( data_type )
         {
+            case DATA_LOG:
+            {
+                data_log_sts_t sts = (data_log_sts_t)*data;
+
+                switch( sts )
+                {
+                    case DATA_LOG_STS_START:
+                        log_data = true;
+                        break;
+                
+                    case DATA_LOG_STS_STOP:
+                        log_data = false;
+                        break;
+
+                    default:
+                        break;
+                }
+                
+                xbee.send_data( DATA_LOG, (uint8_t*)&sts, sizeof(data_log_sts_t) );
+                break;
+            }
+
             default:
                 break;
         }
