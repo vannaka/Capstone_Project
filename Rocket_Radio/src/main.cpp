@@ -59,6 +59,13 @@ typedef struct __attribute__((packed))
     uint8_t sat_num;
 } gps_data_t;
 
+typedef uint8_t data_log_sts_t;
+enum
+{
+    DATA_LOG_STS_START = 0,
+    DATA_LOG_STS_STOP  = 1,
+};
+
 
 /******************************************************************************
  *                          Function Declarations
@@ -176,7 +183,7 @@ void loop()
     if( xbee.new_data_received() )
     {
         data_type_t data_type;
-        uint8_t data[MAX_DATA_LENGTH];
+        uint8_t data[ MAX_DATA_LENGTH ];
         uint8_t size;
 
         xbee.get_data( data_type, data, size );
