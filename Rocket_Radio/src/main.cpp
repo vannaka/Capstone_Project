@@ -73,10 +73,6 @@ void data_send_task();
 void gps_send_task();
 void data_collect_task();
 
-// HDLC callbacks
-void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
-void send_byte_handler( uint8_t data );
-
 //SD Data Collection Functions
 void sd_start_collection();
 void sd_stop_collection();
