@@ -20,8 +20,6 @@
  *****************************************************************************/
 #define ADC_SS_PIN 10
 #define SD_SS_PIN 4
-#define SD_FILE_SNSR "snsr.csv"
-#define SD_FILE_GPS "gps.csv"
 
 /******************************************************************************
  *                               Global Types
@@ -79,6 +77,9 @@ void data_collect_task();
 void received_data_handler( data_type_t data_type, const uint8_t *data, uint16_t length );
 void send_byte_handler( uint8_t data );
 
+//SD Data Collection Functions
+void sd_start_collection();
+void sd_stop_collection();
 
 /******************************************************************************
  *                               Global Vars
@@ -104,6 +105,7 @@ Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
 //File objects and data string 
 File snsr_file;
 File gps_file;
+File count_file;
 
 // Store all sensor data in this structure.
 data_pkg_t sensor_data;
@@ -131,21 +133,7 @@ void setup()
 
     //SD initialization 
     SD.begin( SD_SS_PIN );
-
-    //Initialize Sensor Data File 
-    snsr_file = SD.open( SD_FILE_SNSR, ( O_WRITE | O_CREAT | O_TRUNC ) );
-    if(snsr_file)
-    {
-        snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
-    }
     
-    //Initialize GPS data file 
-    gps_file = SD.open( SD_FILE_GPS, ( O_WRITE | O_CREAT | O_TRUNC ) );
-    if(gps_file)
-    {
-        gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
-    }
-
     // GPS initialization
     gps.begin( 9600 );
     gps.sendCommand( PMTK_SET_NMEA_OUTPUT_RMCGGA ); // turn on RMC (recommended minimum) and GGA (fix data) including altitude
@@ -319,4 +307,65 @@ void gps_send_task()
     gps_file.flush();
     
     snsr_file.flush();
+}
+
+/**********************************************************
+*   sd_start_collection
+*       Initializes the files for the SD card to 
+*       write to 
+**********************************************************/
+void sd_start_collection()
+{
+    uint8_t file_cnt = 0;
+    char cnt_file_path[ 15 ];
+    sprintf( cnt_file_path, "%d_%d/.cnt.txt", gps.month, gps.day );
+    if( SD.exists( cnt_file_path ) )
+    {
+        count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ ) );
+        file_cnt = count_file.read();
+        count_file.print ( ++file_cnt );
+        count_file.close();
+    }
+    //Count file does not exist and needs to be initialized
+    else
+    {
+        count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ | O_CREAT ) );
+        file_cnt = 1;
+        count_file.print( file_cnt );
+        count_file.close();
+    }
+    
+
+    //Initialize the Sensor Data File
+    char snsr_file_path[ 25 ];
+    sprintf( snsr_file_path, "%d_%d/snsr_%d.csv", gps.month, gps.day, file_cnt );
+
+    snsr_file = SD.open( snsr_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
+    if(snsr_file)
+    {
+        snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
+    }
+    
+    //Initialize GPS data file 
+    char gps_file_path[ 25 ];
+    sprintf(gps_file_path, "%d_%d/gps_%d.csv", gps.month, gps.day, file_cnt  );
+    
+    gps_file = SD.open( gps_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
+    if(gps_file)
+    {
+        gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
+    }
+
+
+}
+/**********************************************************
+*   sd_stop_collection
+*       This function will write any remaining data 
+*       and close files 
+**********************************************************/
+void sd_stop_collection()
+{
+    snsr_file.close();
+    gps_file.close();    
+
 }
