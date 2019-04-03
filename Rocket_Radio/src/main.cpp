@@ -106,7 +106,7 @@ File count_file;
 // Store all sensor data in this structure.
 data_pkg_t sensor_data;
 
-bool log_data;
+bool logging_data;
 
 /******************************************************************************
 *                                 Procedures
@@ -119,7 +119,7 @@ bool log_data;
 **********************************************************/
 void setup()
 {
-    log_data = false;
+    logging_data = false;
 
     // Serial initialization (DEBUGING)
     Serial.begin( 9600 );
@@ -184,13 +184,19 @@ void loop()
                 switch( sts )
                 {
                     case DATA_LOG_STS_START:
-                        log_data = true;
-                        sd_start_collection();
+                        if( !logging_data )
+                        {
+                            logging_data = true;
+                            sd_start_collection();
+                        }
                         break;
                 
                     case DATA_LOG_STS_STOP:
-                        log_data = false;
-                        sd_stop_collection();
+                        if( logging_data )
+                        {
+                            logging_data = false;
+                            sd_stop_collection();
+                        }
                         break;
 
                     default:
@@ -253,8 +259,8 @@ void data_collect_task()
     sensor_data.adc_chnl_7 = adc.readADC( 7 );
 
 
-    if( ( snsr_file )
-     && ( log_data  ) )
+    if( ( snsr_file     )
+     && ( logging_data  ) )
     {
         // Save Data to SD card
         sprintf( snsr_data_string,
@@ -316,8 +322,8 @@ void gps_send_task()
 
     xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
 
-    if( ( gps_file )
-     && ( log_data ) )
+    if( ( gps_file     )
+     && ( logging_data ) )
     {
         //Save Data To SD card 
         sprintf( gps_data_string, 
@@ -369,25 +375,27 @@ void sd_start_collection()
     if( SD.exists( cnt_file_path ) )
     {
         count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ ) );
-        file_cnt = count_file.read();
+        file_cnt = count_file.parseInt();
+        
+        count_file.seek( 0 );
         count_file.println( ++file_cnt );
         count_file.close();
     }
     //Count file does not exist and needs to be initialized
     else
     {
-        count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ | O_CREAT ) );
         file_cnt = 1;
-        count_file.print( file_cnt );
+        count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ | O_CREAT ) );
+        count_file.println( file_cnt );
         count_file.close();
     }
-    
+
 
     //Initialize the Sensor Data File
     sprintf( snsr_file_path, "%s/snsr_%d.csv", base_dir, file_cnt );
 
     snsr_file = SD.open( snsr_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
-    if(snsr_file)
+    if( snsr_file )
     {
         snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
         snsr_file.flush();
@@ -397,7 +405,7 @@ void sd_start_collection()
     sprintf(gps_file_path, "%s/gps_%d.csv", base_dir, file_cnt );
     
     gps_file = SD.open( gps_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
-    if(gps_file)
+    if( gps_file )
     {
         gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
         gps_file.flush();
