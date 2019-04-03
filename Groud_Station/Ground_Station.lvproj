@@ -16,6 +16,7 @@
 		<Item Name="utils" Type="Folder" URL="../utils">
 			<Property Name="NI.DISK" Type="Bool">true</Property>
 		</Item>
+		<Item Name="data_log_sts_t.ctl" Type="VI" URL="../data_log_sts_t.ctl"/>
 		<Item Name="Ground_Station.vi" Type="VI" URL="../Ground_Station.vi"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
