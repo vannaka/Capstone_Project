@@ -106,7 +106,6 @@ File count_file;
 // Store all sensor data in this structure.
 data_pkg_t sensor_data;
 
-
 bool log_data;
 
 /******************************************************************************
@@ -186,10 +185,12 @@ void loop()
                 {
                     case DATA_LOG_STS_START:
                         log_data = true;
+                        sd_start_collection();
                         break;
                 
                     case DATA_LOG_STS_STOP:
                         log_data = false;
+                        sd_stop_collection();
                         break;
 
                     default:
@@ -251,26 +252,31 @@ void data_collect_task()
     sensor_data.adc_chnl_6 = adc.readADC( 6 );
     sensor_data.adc_chnl_7 = adc.readADC( 7 );
 
-    // Save Data to SD card
-    sprintf( snsr_data_string, 
-             "%s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d",
-             String( sensor_data.angle_x, 4 ).c_str(),
-             String( sensor_data.angle_y, 4 ).c_str(), 
-             String( sensor_data.angle_z, 4 ).c_str(), 
-             String( sensor_data.accel_x, 4 ).c_str(), 
-             String( sensor_data.accel_y, 4 ).c_str(), 
-             String( sensor_data.accel_z, 4 ).c_str(),
-             sensor_data.adc_chnl_0,
-             sensor_data.adc_chnl_1,
-             sensor_data.adc_chnl_2,
-             sensor_data.adc_chnl_3,
-             sensor_data.adc_chnl_4,
-             sensor_data.adc_chnl_5,
-             sensor_data.adc_chnl_6,
-             sensor_data.adc_chnl_7
-    );
 
-    snsr_file.println( snsr_data_string );
+    if( ( snsr_file )
+     && ( log_data  ) )
+    {
+        // Save Data to SD card
+        sprintf( snsr_data_string,
+                "%s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d",
+                String( sensor_data.angle_x, 4 ).c_str(),
+                String( sensor_data.angle_y, 4 ).c_str(), 
+                String( sensor_data.angle_z, 4 ).c_str(), 
+                String( sensor_data.accel_x, 4 ).c_str(), 
+                String( sensor_data.accel_y, 4 ).c_str(), 
+                String( sensor_data.accel_z, 4 ).c_str(),
+                sensor_data.adc_chnl_0,
+                sensor_data.adc_chnl_1,
+                sensor_data.adc_chnl_2,
+                sensor_data.adc_chnl_3,
+                sensor_data.adc_chnl_4,
+                sensor_data.adc_chnl_5,
+                sensor_data.adc_chnl_6,
+                sensor_data.adc_chnl_7
+        );
+
+        snsr_file.println( snsr_data_string );
+    }
 }
 
 
@@ -310,25 +316,29 @@ void gps_send_task()
 
     xbee.send_data( GPS_DATA, (uint8_t*)&data, sizeof(data) );
 
-    //Save Data To SD card 
-    sprintf( gps_data_string, 
-             "%d, %d, %d, %d, %d, %d, %s, %s, %d, %d, %d", 
-             data.year, 
-             data.month, 
-             data.day, 
-             data.hour,
-             data.min,
-             data.sec,
-             String( data.lat, 4 ).c_str(), 
-             String( data.lon, 4 ).c_str(),
-             data.fix,
-             data.fix_qual,
-             data.sat_num   );
+    if( ( gps_file )
+     && ( log_data ) )
+    {
+        //Save Data To SD card 
+        sprintf( gps_data_string, 
+                "%d, %d, %d, %d, %d, %d, %s, %s, %d, %d, %d",
+                data.year, 
+                data.month, 
+                data.day, 
+                data.hour,
+                data.min,
+                data.sec,
+                String( data.lat, 4 ).c_str(), 
+                String( data.lon, 4 ).c_str(),
+                data.fix,
+                data.fix_qual,
+                data.sat_num   );
 
-    gps_file.println( gps_data_string );
-    gps_file.flush();
-    
-    snsr_file.flush();
+        gps_file.println( gps_data_string );
+
+        gps_file.flush();
+        snsr_file.flush();
+    }
 }
 
 /**********************************************************
@@ -338,14 +348,29 @@ void gps_send_task()
 **********************************************************/
 void sd_start_collection()
 {
-    uint8_t file_cnt = 0;
+    char base_dir[15];
     char cnt_file_path[ 15 ];
-    sprintf( cnt_file_path, "%d_%d/.cnt.txt", gps.month, gps.day );
+    char snsr_file_path[ 25 ];
+    char gps_file_path[ 25 ];
+    uint8_t file_cnt;
+    uint8_t day;
+    uint8_t month;
+
+    day = gps.day;
+    month = gps.month;
+    file_cnt = 0;
+
+    // Create the base dir
+    sprintf( base_dir, "/%d_%d", month, day );
+    SD.mkdir( base_dir );
+
+    // Get the log cnt in the base dir
+    sprintf( cnt_file_path, "%s/cnt.txt", base_dir );
     if( SD.exists( cnt_file_path ) )
     {
         count_file = SD.open( cnt_file_path, ( O_WRITE | O_READ ) );
         file_cnt = count_file.read();
-        count_file.print ( ++file_cnt );
+        count_file.println( ++file_cnt );
         count_file.close();
     }
     //Count file does not exist and needs to be initialized
@@ -359,23 +384,23 @@ void sd_start_collection()
     
 
     //Initialize the Sensor Data File
-    char snsr_file_path[ 25 ];
-    sprintf( snsr_file_path, "%d_%d/snsr_%d.csv", gps.month, gps.day, file_cnt );
+    sprintf( snsr_file_path, "%s/snsr_%d.csv", base_dir, file_cnt );
 
     snsr_file = SD.open( snsr_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(snsr_file)
     {
         snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
+        snsr_file.flush();
     }
     
     //Initialize GPS data file 
-    char gps_file_path[ 25 ];
-    sprintf(gps_file_path, "%d_%d/gps_%d.csv", gps.month, gps.day, file_cnt  );
+    sprintf(gps_file_path, "%s/gps_%d.csv", base_dir, file_cnt );
     
     gps_file = SD.open( gps_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if(gps_file)
     {
         gps_file.println( "year, month, day, hour, minute, second, latitude, longitude, fix, fix quality, satellites" );
+        gps_file.flush();
     }
 
 
