@@ -13,6 +13,8 @@
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
 
+#include <AllSensors_DLV.h>
+
 #include "xbee/xbee.h"
 
 /******************************************************************************
@@ -40,6 +42,8 @@ typedef struct __attribute__((packed))
     float accel_x;
     float accel_y;
     float accel_z;
+    float prsur;
+    float prsur_temp;
 } data_pkg_t;
 
 typedef struct __attribute__((packed))
@@ -96,7 +100,11 @@ Adafruit_MCP3008 adc;
 Adafruit_GPS gps( &Serial2 );
 
 // IMU Object
-Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
+// Adafruit_BNO055 imu_sensor = Adafruit_BNO055();
+Adafruit_BNO055 imu_sensor = Adafruit_BNO055( -1, BNO055_ADDRESS_B );
+
+// Pressure Sensor object
+AllSensors_DLV_015A pressure_sensor = AllSensors_DLV_015A( &Wire );
 
 //File objects and data string 
 File snsr_file;
@@ -143,6 +151,10 @@ void setup()
     imu_sensor.begin();
     delay(1000);
     imu_sensor.setExtCrystalUse( true );
+
+    // Humidity setup
+    pressure_sensor.setPressureUnit( AllSensors_DLV::PSI );
+    pressure_sensor.setTemperatureUnit( AllSensors_DLV::FAHRENHEIT );
 
     // Setup cooperative scheduler
     scheduler.init();
@@ -258,13 +270,17 @@ void data_collect_task()
     sensor_data.adc_chnl_6 = adc.readADC( 6 );
     sensor_data.adc_chnl_7 = adc.readADC( 7 );
 
+    // Get humidity data
+    pressure_sensor.readData();
+    sensor_data.prsur = pressure_sensor.pressure;
+    sensor_data.prsur_temp = pressure_sensor.temperature;
 
     if( ( snsr_file     )
      && ( logging_data  ) )
     {
         // Save Data to SD card
         sprintf( snsr_data_string,
-                "%s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d",
+                "%s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d, %s, %s",
                 String( sensor_data.angle_x, 4 ).c_str(),
                 String( sensor_data.angle_y, 4 ).c_str(), 
                 String( sensor_data.angle_z, 4 ).c_str(), 
@@ -278,7 +294,9 @@ void data_collect_task()
                 sensor_data.adc_chnl_4,
                 sensor_data.adc_chnl_5,
                 sensor_data.adc_chnl_6,
-                sensor_data.adc_chnl_7
+                sensor_data.adc_chnl_7,
+                String( sensor_data.prsur, 4 ).c_str(),
+                String( sensor_data.prsur_temp, 4 ).c_str()
         );
 
         snsr_file.println( snsr_data_string );
@@ -397,7 +415,7 @@ void sd_start_collection()
     snsr_file = SD.open( snsr_file_path, ( O_WRITE | O_CREAT | O_TRUNC ) );
     if( snsr_file )
     {
-        snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7" );
+        snsr_file.println( "angle_X, angle_Y, angle_Z, accel_X, accel_Y, accel_Z, adc_chnl_0, adc_chnl_1, adc_chnl_2, adc_chnl_3, adc_chnl_4, adc_chnl_5, adc_chnl_6, adc_chnl_7, air pressure, air pressure temp" );
         snsr_file.flush();
     }
     
