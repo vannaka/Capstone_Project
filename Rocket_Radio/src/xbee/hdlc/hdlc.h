@@ -1,11 +1,10 @@
-// #ifndef hdlc_h
+#ifndef hdlc_h
 #define hdlc_h
 
 #include "Arduino.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <functional>
-// #include "../../circular_buffer/circular_buffer.h"
 
 /******************************************************************************
  *                                 Defines
@@ -57,8 +56,6 @@ private:
     uint8_t frame_position;
     uint16_t frame_checksum;
     uint16_t max_frame_length;
-
-    // Circular_Buffer out_buf;
 };
 
-// #endif
+#endif
